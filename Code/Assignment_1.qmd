@@ -1,0 +1,347 @@
+---
+title: "Assignment 1"
+format: html
+editor: visual
+embed-resources: true
+toc: true
+theme: flatly
+code-fold: false
+---
+
+------------------------------------------------------------------------
+
+# **Black Friday Sales Data Analysis**
+
+## **1. Introduction**
+
+Black Friday is one of the largest shopping events worldwide, where customers make bulk purchases across different product categories. Understanding customer behavior and product performance is crucial for businesses to optimize marketing strategies and improve sales.
+
+## **2. Dataset Description**
+
+The dataset consists of transactions from a retail store on Black Friday. It includes information about customer demographics, product categories, and purchase amounts.
+
+## **3. Column Descriptions**
+
+| Column Name        | Description                                   |
+|--------------------|-----------------------------------------------|
+| User_ID            | Unique customer identifier                    |
+| Product_ID         | Unique product identifier                     |
+| Gender             | Customer gender (M/F)                         |
+| Age                | Age group of the customer                     |
+| Occupation         | Customer occupation category (masked)         |
+| City_Category      | City type (A = Metro, B = Tier 1, C = Tier 2) |
+| Marital_Status     | Marital status (0 = Single, 1 = Married)      |
+| Product_Category_1 | Primary product category                      |
+| Purchase           | Purchase amount                               |
+
+**Columns Removed:** Product_Category_2, Product_Category_3, Stay_In_Current_City_Years (as they are either redundant or not useful for the analysis).
+
+### Workflow
+
+```{mermaid}
+flowchart TD;
+    A[Start] --> B[Load Dataset]
+    B --> C[Data Cleaning]
+    C --> D[Statistical Analysis]
+    D --> E[Exploratory Data Analysis]
+    E --> F[Outlier Detection]
+    F --> G[Linear Regression Model]
+    G --> H[Model Evaluation]
+    H --> I[Conclusion]
+```
+
+### Loading Libraries
+
+```{r, message=FALSE, warning=FALSE}
+### Load Required Libraries
+library(tidyverse)
+library(kableExtra)
+library(dplyr)
+library(tibble)
+library(performance)
+library(ggplot2)
+library(scales)
+```
+
+## **4. Data Import and Cleaning**
+
+### **1. Loading Dataset**
+
+The dataset was imported using the `read_csv()` function and stored in a dataframe.
+
+```{r, message=FALSE}
+# Read the dataset
+black_friday <- read_csv("/Users/amitkumar/Desktop/MSc Business Analytics/Sem 2/applied analytics/r_applied_analytics/Assignment_1/dataset/Black_friday_sales_dataset.csv")
+# Convert categorical variables to factors
+black_friday <- black_friday %>%
+  mutate(
+    Gender = as.factor(Gender),
+    Age = as.factor(Age),
+    City_Category = as.factor(City_Category),
+    Occupation = as.factor(Occupation),
+    Marital_Status = as.factor(Marital_Status),
+    Product_Category_1 = as.factor(Product_Category_1)
+  )
+
+```
+
+### **2. Structure of Dataset**
+
+```{r}
+# Check the structure of the dataset
+str(black_friday)
+```
+
+### 3. View the first few rows
+
+```{r}
+# View the first few rows
+head(black_friday)
+```
+
+### Getting a random view of dataset for a better understanding
+
+```{r}
+# Getting a random view of dataset for a better understanding
+sample_n(black_friday,10)
+```
+
+### **4. Removing Unnecessary Columns**
+
+Columns such as `Stay_In_Current_City_Years`, Product_Category_2 and Product_Category_3 were removed as they do not contribute to the analysis.
+
+```{r}
+# Remove unnecessary columns
+black_friday <- black_friday %>% select(-c(Product_Category_2, Product_Category_3, Stay_In_Current_City_Years))
+
+```
+
+### 5. Handling Missing Values
+
+```{r}
+# Check missing values
+missing_values <- colSums(is.na(black_friday))
+print(missing_values)
+
+```
+
+## **5. Statistical Analysis**
+
+```{r}
+
+# used chatgpt for code
+### 5. Statistical Metrics, as there is only one numeric attribute i.e. Purchase
+stats_summary <- tibble(
+  Statistic = c("Mean", "Median", "Std Dev", "Min", "Max"),
+  Purchase = c(mean(black_friday$Purchase), median(black_friday$Purchase),
+               sd(black_friday$Purchase), min(black_friday$Purchase), max(black_friday$Purchase))
+)
+
+print(stats_summary)
+```
+
+## 6. Exploratory Data Analysis
+
+### 6.1 The percentage of spending by gender
+
+```{r}
+
+# Total spending by gender
+gender_spending <- black_friday %>%
+  group_by(Gender) %>%
+  summarise(Total_Spending = sum(Purchase, na.rm = TRUE))
+
+# Calculate the percentage of total spending
+gender_spending <- gender_spending %>%
+  mutate(Percentage_Spending = (Total_Spending / sum(Total_Spending)) * 100)
+
+
+# used chatgpt for code
+# Plot the percentage of spending by gender
+ggplot(gender_spending, aes(x = Gender, y = Percentage_Spending, fill = Gender)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_fill_brewer(palette = "Pastel1") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +  # Format as percentage
+  labs(title = "Percentage of Total Spending by Gender",
+       x = "Gender",
+       y = "Percentage of Total Spending") +
+  theme_minimal()
+
+
+```
+
+Males contributed significantly more with 78% to total sales than females with 22%.
+
+### **6.2 Spending by Age Group**
+
+```{r}
+
+# used chatgpt for code
+# Total spending by each age group
+age_spending <- black_friday %>%
+  group_by(Age) %>%
+  summarise(Total_Spending = sum(Purchase))
+
+# Calculate the percentage of total spending
+age_spending <- age_spending %>%
+  mutate(Percentage_Spending = (Total_Spending / sum(Total_Spending)) * 100)
+
+# Plot the percentage of spending by age group
+ggplot(age_spending, aes(x = Age, y = Percentage_Spending, fill = Age)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +  # Format as percentage
+  labs(title = "Percentage of Total Spending by Age Group",
+       x = "Age Group",
+       y = "Percentage of Total Spending") +
+  theme_minimal()
+
+```
+
+-   Customers in the **26-35** age group had the highest total spending.
+
+-   Older age groups showed lower spending trends.
+
+### **6.3 Top 5 Product Categories by Revenue**
+
+```{r}
+# Top 5 product categories by revenue
+product_revenue <- black_friday %>%
+  group_by(Product_Category_1) %>%
+  summarise(Total_Revenue = sum(Purchase)) %>%
+  arrange(desc(Total_Revenue)) %>%
+  head(5)
+
+# used chatgpt for code
+ggplot(product_revenue, aes(x = reorder(Product_Category_1, Total_Revenue), y = Total_Revenue, fill = Product_Category_1)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Top 5 Product Categories by Revenue", x = "Product Category", y = "Total Revenue") +
+  coord_flip() +
+  theme_minimal()
+
+```
+
+## **7. Outlier Detection & Removal**
+
+```{r}
+# Check for outliers using boxplot
+boxplot(black_friday$Purchase, main = "Boxplot of Purchase Amounts", col = "lightblue")
+
+# Remove outliers using IQR method
+Q1 <- quantile(black_friday$Purchase, 0.25)
+Q3 <- quantile(black_friday$Purchase, 0.75)
+IQR_value <- Q3 - Q1
+
+# Define upper and lower limits
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+# Filter out outliers (Regular Transactions)
+black_friday_clean <- black_friday %>%
+  filter(Purchase >= lower_bound & Purchase <= upper_bound)
+
+# Identify high-value transactions (Potential Premium Purchases)
+extreme_high_values <- black_friday %>%
+  filter(Purchase > upper_bound)
+
+
+```
+
+-   Outliers were detected using the **IQR method**.
+
+-   Transactions exceeding the upper bound were considered **high-value transactions**.
+
+-   A boxplot was used to visualize these high-value purchases.
+
+```{r}
+# Show how many rows were removed
+paste("Rows before cleaning:", nrow(black_friday))
+paste("Rows after cleaning:", nrow(black_friday_clean))
+paste("Rows removed:", nrow(black_friday) - nrow(black_friday_clean))
+
+
+```
+
+```{r}
+# Display top high-value transactions
+# Potential premium purchases
+head(extreme_high_values)
+```
+
+### **7.1 Premium Purchases by Age Group**
+
+```{r}
+
+# ---- Percentage of High-Value Transactions by Age ---- #
+
+# used chatgpt for code
+# Count total transactions per age group
+total_purchases_by_age <- black_friday %>%
+  group_by(Age) %>%
+  summarise(Total_Transactions = n())
+
+# Count high-value transactions per age group
+high_value_purchases_by_age <- extreme_high_values %>%
+  group_by(Age) %>%
+  summarise(High_Value_Transactions = n())
+
+# Merge datasets to calculate percentage
+age_high_value_percentage <- merge(total_purchases_by_age, high_value_purchases_by_age, by = "Age", all.x = TRUE)
+
+# Replace NA (for groups with zero high-value transactions) with 0
+age_high_value_percentage$High_Value_Transactions[is.na(age_high_value_percentage$High_Value_Transactions)] <- 0
+
+# Calculate percentage of high-value transactions
+age_high_value_percentage <- age_high_value_percentage %>%
+  mutate(Percentage_High_Value = (High_Value_Transactions / Total_Transactions) * 100)
+
+# ---- Visualizing High-Value Purchase Percentage by Age ---- #
+
+ggplot(age_high_value_percentage, aes(x = Age, y = Percentage_High_Value, fill = Age)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +  # Convert to percentage format
+  labs(title = "Percentage of High-Value Transactions by Age Group",
+       x = "Age Group",
+       y = "Percentage of Premium Purchases") +
+  theme_minimal()
+
+```
+
+-   The percentage of high-value purchases was calculated for each age group.
+
+## **8. Predictive Modeling: Linear Regression**
+
+### **1. Selecting Features**
+
+-   Independent variables: **Gender, Age, and City_Category**.
+
+-   The categorical variables were converted into numeric form.
+
+```{r}
+
+# used chatgpt for code
+# Convert categorical variables to numeric factors
+black_friday <- black_friday %>%
+  mutate(
+    Gender = as.numeric(as.factor(Gender)),  # Male = 1, Female = 2
+    Age = as.numeric(as.factor(Age)),  # Convert Age groups to numbers
+    City_Category = as.numeric(as.factor(City_Category))  # Convert City A/B/C to numbers
+  )
+# Build linear regression model
+linear_model <- lm(Purchase ~ Gender + Age + City_Category, data = black_friday)
+
+# Display model summary
+summary(linear_model)
+
+```
+
+-   The model tries to predict purchase amount based on Gender, Age, and City Category.
+
+-   It is statistically significant but explains less than 1% of the variation in purchases, meaning it does not predict well.
+
+## 9. Conclusion
+
+This analysis of Black Friday Sales data helped us understand customer spending habits. We also identified high-value purchases using outlier detection and built a Linear Regression model to predict spending. These insights can help businesses target the right customers, improve marketing, and manage inventory better. Future improvements could include using advanced machine learning models to make better predictions.
